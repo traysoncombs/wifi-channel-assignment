@@ -10,14 +10,14 @@ Class that houses channels with a fixed width
 
 
 class Channels:
-    def __init__(self, base_freq: float, num_channels: int, channel_width: float):
+    def __init__(self, base_freq: float, num_channels: int, channel_width: float, base_freq_distance: float):
         self.channels = []
         self.base_freq = base_freq
         self.num_channels = num_channels
         self.channel_width = channel_width
 
         for i in range(num_channels):
-            self.channels[i] = base_freq + channel_width * i
+            self.channels.append(base_freq + base_freq_distance * i)
 
     def get_channel_base(self, index: int) -> float:
         """
@@ -35,8 +35,7 @@ class Channels:
     def is_overlapping(self, channel_1: int, channel_2: int) -> bool:
         channel_1_center = self.get_channel_center(channel_1)
         channel_2_center = self.get_channel_center(channel_2)
-        return abs(channel_1_center - channel_2_center) >= (self.channel_width/2)
-
+        return abs(channel_1_center - channel_2_center) >= (self.channel_width / 2)
 
 
 class Transmitter:
@@ -57,9 +56,10 @@ class Transmitter:
         self.path_loss = path_loss
 
     def get_received_power(self, position: Position) -> float:
-        return self.path_loss.received_power_at_position(self.tx_power, self.position, position)
+        return self.path_loss.received_power_at_position(self.tx_power, self.position, position,
+                                                         self.channels.get_channel_center(self.channel))
 
-    def get_signal_interference(self, other_transmitter: Transmitter) -> float:
+    def get_signal_interference(self, other_transmitter) -> float:
         """
         Returns the normalized signal interference between two transmitters if they are operating on overlapping channels.
         :param other_transmitter:
@@ -67,5 +67,3 @@ class Transmitter:
         """
         if self.channels.is_overlapping(self.channel, other_transmitter.channel):
             return 0
-
-
