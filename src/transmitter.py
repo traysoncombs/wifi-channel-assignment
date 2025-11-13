@@ -40,7 +40,7 @@ class Channels:
 
 class Transmitter:
     def __init__(self, channel: int, tx_power: float, position: Position, channels: Channels,
-                 path_loss: AbstractPathLossModel):
+                 path_loss: AbstractPathLossModel, sir_power_ref: float):
         """
         Initializes the transmitter
         :param channel: Channel index, should be contained within channels
@@ -54,6 +54,7 @@ class Transmitter:
         self.position = position
         self.channels = channels
         self.path_loss = path_loss
+        self.sir_power_ref = sir_power_ref
 
     def get_received_power(self, position: Position) -> float:
         return self.path_loss.received_power_at_position(self.tx_power, self.position, position,
@@ -67,3 +68,9 @@ class Transmitter:
         """
         if self.channels.is_overlapping(self.channel, other_transmitter.channel):
             return 0
+
+        normal_pos = self.path_loss.position_from_received_power(self.tx_power, self.sir_power_ref, self.position,
+                                                                 other_transmitter.position,
+                                                                 self.channels.get_channel_center(self.channel))
+        rx_power_at_norm_pos = other_transmitter.get_received_power(normal_pos)
+        return (10**(self.sir_power_ref/10)) / (10**(rx_power_at_norm_pos/10))

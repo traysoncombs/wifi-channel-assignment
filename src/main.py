@@ -1,7 +1,7 @@
 import random
 from typing import Dict
 
-from src.path_loss import Position, PartitionedPathLossModel
+from src.path_loss import Position, PartitionedPathLossModel, FreeSpacePathLossModel
 from src.transmitter import Channels, Transmitter
 
 
@@ -21,10 +21,18 @@ def crate_random_pl_exponents(room_length: float, room_width: float, rows: int, 
     return path_loss_exponents
 
 if __name__ == "__main__":
-    path_loss_exponents = crate_random_pl_exponents(100, 100, 20, 20, 2, 3, 1)
-    path_loss = PartitionedPathLossModel(path_loss_exponents, 100, 100)
+    #path_loss_exponents = crate_random_pl_exponents(100, 100, 20, 20, 2, 3, 1)
+    path_loss = FreeSpacePathLossModel(2.5)
+    ref_power = -40
     channels = Channels(2402, 11, 20, 5)
-    transmitter = Transmitter(1, 8, Position(0, 0), channels, path_loss)
-    rx_pos = Position(10, 10)
-    rx_power = transmitter.get_received_power(rx_pos)
-    print(rx_power)
+    transmitter1 = Transmitter(1, 10, Position(0, 0), channels, path_loss, ref_power)
+    transmitter2 = Transmitter(1, 10, Position(1, 1), channels, path_loss, ref_power)
+    powa = transmitter1.get_received_power(Position(1, 1))
+    print(powa)
+    inter= transmitter1.get_signal_interference(transmitter2)
+    print(inter)
+
+    #rx_pos = Position(30, 30)
+    #rx_power = transmitter1.get_received_power(rx_pos)
+    #pos_at_power = path_loss.position_from_received_power(10, rx_power, Position(0, 0), rx_pos, channels.get_channel_center(1))
+    #print(f"rx_power: {rx_power}, estimated rx_position: {pos_at_power}")
