@@ -19,7 +19,7 @@ class Position:
         return sqrt(self.x ** 2 + self.y ** 2)
 
     def __repr__(self):
-        return f"({self.x}, {self.y})"
+        return f"({self.x:.2f}, {self.y:.2f})"
 
     def __hash__(self):
         return hash((self.x, self.y))
