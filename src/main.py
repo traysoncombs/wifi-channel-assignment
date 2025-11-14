@@ -1,6 +1,8 @@
 import random
 from typing import Dict, List
 
+from matplotlib.lines import Line2D
+
 from src.path_loss import Position, PartitionedPathLossModel, FreeSpacePathLossModel, AbstractPathLossModel
 from src.sir_constraint import create_and_solve_constraint_problem
 from src.transmitter import Channels, Transmitter
@@ -40,7 +42,7 @@ def create_transmitters(max_x: int, max_y: int, seed: int, num_transmitters: int
 
     return transmitters
 
-def visualize(transmitters: List[Transmitter]):
+def visualize(transmitters: List[Transmitter], max_line_dist: float):
     x_coords = [tx.position.x for tx in transmitters]
     y_coords = [tx.position.y for tx in transmitters]
     channels = [tx.channel for tx in transmitters]
@@ -49,21 +51,30 @@ def visualize(transmitters: List[Transmitter]):
     ax = fig.add_subplot(111)
     ax.plot(x_coords, y_coords, 'o')
     for i in range(0, len(transmitters)):
-        ax.annotate(str(channels[i]), (x_coords[i], y_coords[i]))
+        ax.annotate(str(channels[i]), (x_coords[i], y_coords[i]), color='b')
+
+    for i in range(len(transmitters) - 1):
+        for j in range(i + 1, len(transmitters)):
+            tx1 = transmitters[i]
+            tx2 = transmitters[j]
+            if tx1.position.distance(tx2.position) <= max_line_dist:
+                ax.plot((tx1.position.x, tx2.position.x), (tx1.position.y, tx2.position.y), 'ro-')
+                diff_x, diff_y = tx1.position.x - tx2.position.x, tx1.position.y - tx2.position.y
+                ax.annotate(str(round(tx1.get_signal_interference_ratio(tx2), 3)), xy=(tx2.position.x + diff_x/2, tx2.position.y + diff_y/2), fontsize=7)
 
     ax.grid(True)
     plt.show()
 
 if __name__ == "__main__":
     # path_loss_exponents = crate_random_pl_exponents(100, 100, 20, 20, 2, 3, 1)
-    path_loss = FreeSpacePathLossModel(2)
+    path_loss = FreeSpacePathLossModel(2.5)
     ref_power = -40
     channels = Channels(2402, 11, 20, 5)
-    transmitters = create_transmitters(20, 20, 17, 15, path_loss, 10, channels, ref_power)
+    transmitters = create_transmitters(200, 200, 6, 10, path_loss, 10, channels, ref_power)
 
-    problem = create_and_solve_constraint_problem(transmitters, channels, 13)
+    problem = create_and_solve_constraint_problem(transmitters, channels, 0.1)
 
-    visualize(problem.__next__())
+    visualize(problem.__next__(), 100)
 
 
     #transmitter1 = Transmitter(1, 10, Position(0, 0), channels, path_loss, ref_power)

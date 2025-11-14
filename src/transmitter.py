@@ -1,14 +1,10 @@
-import abc
-import enum
-from typing import Tuple, List
+from typing import List
 
 from src.path_loss import AbstractPathLossModel, Position
 
 """
 Class that houses channels with a fixed width
 """
-
-
 class Channels:
     def __init__(self, base_freq: float, num_channels: int, channel_width: float, base_freq_distance: float):
         self.channels = []
@@ -32,12 +28,19 @@ class Channels:
         """
         return self.channels[index - 1] + (self.channel_width / 2)
 
-    def is_overlapping(self, channel_1: int, channel_2: int) -> bool:
+    def get_channel_overlap(self, channel_1: int, channel_2: int) -> float:
         channel_1_base = self.get_channel_base(channel_1)
         channel_2_base = self.get_channel_base(channel_2)
         first_channel = min(channel_1_base, channel_2_base)
         second_channel = max(channel_1_base, channel_2_base)
-        return second_channel - first_channel <= self.channel_width
+        overlap = first_channel + self.channel_width - second_channel
+
+        if overlap == 0:
+            return 1
+        elif overlap < 0:
+            return 0
+
+        return overlap
 
     def channel_centers(self) -> List[float]:
         return [self.get_channel_center(ch) for ch in self.channels]
@@ -71,15 +74,35 @@ class Transmitter:
         :param other_transmitter:
         :return:
         """
-        if not self.channels.is_overlapping(self.channel, other_transmitter.channel):
-            return 2**32
+        overlap = self.channels.get_channel_overlap(self.channel, other_transmitter.channel)
+
+        # If there is no overlap between the channel then we return maximum sir
+        if overlap == 0:
+            return 1
 
         normal_pos = self.path_loss.position_from_received_power(self.tx_power, self.sir_power_ref, self.position,
                                                                  other_transmitter.position,
                                                                  self.channels.get_channel_center(self.channel))
         rx_power_at_norm_pos = other_transmitter.get_received_power(normal_pos)
 
-        return (10**(self.sir_power_ref/10)) / (10**(rx_power_at_norm_pos/10))
+        # Here we compute the SIR and normalize it assuming that the maximum received power is `other_transmitter.tx_power` and
+        # the minimum received power is -90 dbm
+
+
+
+        numerator_linear = (10 ** (self.sir_power_ref / 10))
+        denominator_linear = (10 ** (rx_power_at_norm_pos / 10))
+        # The maximum received power is the transmission power of the other transmitter
+        max_rx_power_linear = (10 ** ((other_transmitter.tx_power - 10) / 10))
+        # At -90dbm there will be basically no interference so we call normalize sir to be at 1 when the received power is -90dbm
+        min_rx_power_linear = (10 ** (-90 / 10))
+
+        normal_sir_numerator = (numerator_linear / denominator_linear) - (numerator_linear / max_rx_power_linear)
+        normal_sir_denominator = (numerator_linear / min_rx_power_linear) - (numerator_linear / max_rx_power_linear)
+
+        # Increase SIR for smaller channel overlaps, and increase less for larger channel overlaps
+        #overlap_adjusted_sir = (normal_sir_numerator / normal_sir_denominator) * (self.channels.channel_width / overlap)
+        return (normal_sir_numerator / normal_sir_denominator)
 
     def __str__(self) -> str:
         return f"{self.position}, {self.channel}"

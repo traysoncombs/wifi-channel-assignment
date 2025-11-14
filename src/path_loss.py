@@ -156,8 +156,9 @@ class FreeSpacePathLossModel(AbstractPathLossModel):
         # I couldn't get this calculation to work in db scale
         # so we convert to linear and back... very efficient
         wavelength = (3 * 10 ** 8) / (frequency * 10 ** 6)
-        rx_power_linear = (10**(tx_power/10)) * (wavelength / (4 * math.pi * distance)) ** self.pl_exp
-        return 10 * log10(rx_power_linear)
+        #rx_power_linear = (10**(tx_power/10)) * (wavelength / (4 * math.pi * distance)) ** self.pl_exp
+        #return 10 * log10(rx_power_linear)
+        return tx_power + 10 * self.pl_exp * log10(wavelength / (4 * math.pi * distance))
 
     def position_from_received_power(self, tx_power: float, rx_power: float, tx_pos: Position, rx_pos: Position,
                                      frequency: float) -> Position:
@@ -171,4 +172,4 @@ class FreeSpacePathLossModel(AbstractPathLossModel):
         distance = wavelength / (4 * math.pi * ((rx_power_linear/tx_power_linear) ** (1/self.pl_exp)))
 
         scale_factor = distance / path_mag
-        return Position(path.x * scale_factor, path.y * scale_factor)
+        return Position(tx_pos.x + path.x * scale_factor, tx_pos.y + path.y * scale_factor)
