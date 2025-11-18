@@ -1,6 +1,6 @@
 from typing import List
 
-from src.path_loss import AbstractPathLossModel, Position
+from path_loss import AbstractPathLossModel, Position
 
 """
 Class that houses channels with a fixed width
@@ -85,24 +85,32 @@ class Transmitter:
                                                                  self.channels.get_channel_center(self.channel))
         rx_power_at_norm_pos = other_transmitter.get_received_power(normal_pos)
 
-        # Here we compute the SIR and normalize it assuming that the maximum received power is `other_transmitter.tx_power` and
+        # Here we compute the SIR and normalize it to [0, 1] assuming that the maximum received power is `other_transmitter.tx_power` and
         # the minimum received power is -90 dbm
-
-
 
         numerator_linear = (10 ** (self.sir_power_ref / 10))
         denominator_linear = (10 ** (rx_power_at_norm_pos / 10))
         # The maximum received power is the transmission power of the other transmitter
-        max_rx_power_linear = (10 ** ((other_transmitter.tx_power - 10) / 10))
+        max_rx_power_linear = (10 ** ((other_transmitter.tx_power - 30) / 10))
         # At -90dbm there will be basically no interference so we call normalize sir to be at 1 when the received power is -90dbm
         min_rx_power_linear = (10 ** (-90 / 10))
 
         normal_sir_numerator = (numerator_linear / denominator_linear) - (numerator_linear / max_rx_power_linear)
         normal_sir_denominator = (numerator_linear / min_rx_power_linear) - (numerator_linear / max_rx_power_linear)
 
-        # Increase SIR for smaller channel overlaps, and increase less for larger channel overlaps
-        #overlap_adjusted_sir = (normal_sir_numerator / normal_sir_denominator) * (self.channels.channel_width / overlap)
-        return (normal_sir_numerator / normal_sir_denominator)
+        # Create a scale factor to reduce our SIR for higher channel overlap.
+        if overlap <= 1:
+            scale_factor = 1
+        elif overlap <= 5:
+            scale_factor = 0.9
+        elif overlap <= 10:
+            scale_factor = 0.8
+        elif overlap <= 15:
+            scale_factor = 0.7
+        else:
+            scale_factor = 0.6
+
+        return (normal_sir_numerator / normal_sir_denominator) * scale_factor
 
     def __str__(self) -> str:
         return f"{self.position}, {self.channel}"

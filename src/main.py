@@ -1,32 +1,25 @@
 import random
-from typing import Dict, List
+from typing import List
 
-from matplotlib.lines import Line2D
-
-from src.path_loss import Position, PartitionedPathLossModel, FreeSpacePathLossModel, AbstractPathLossModel
-from src.sir_constraint import create_and_solve_constraint_problem
-from src.transmitter import Channels, Transmitter
+from path_loss import Position, FreeSpacePathLossModel, AbstractPathLossModel
+from sir_constraint import create_and_solve_constraint_problem
+from transmitter import Channels, Transmitter
 from matplotlib import pyplot as plt
-
-
-def crate_random_pl_exponents(room_length: float, room_width: float, rows: int, cols: int, exp_min: float,
-                              exp_max: float, seed: int) -> Dict[Position, int]:
-    random.seed(seed)
-    path_loss_exponents = {}
-    x_step = room_length / cols
-    y_step = room_width / rows
-    tmp_pos = Position(0, 0)
-    for row in range(rows):
-        for col in range(cols):
-            path_loss_exponents[Position(tmp_pos.x, tmp_pos.y)] = random.uniform(exp_min, exp_max)
-            tmp_pos.x = tmp_pos.x + x_step
-        tmp_pos.y += y_step
-
-    return path_loss_exponents
-
 
 def create_transmitters(max_x: int, max_y: int, seed: int, num_transmitters: int,
                         path_loss: AbstractPathLossModel, tx_power: float, chs: Channels, ref_power: float) -> List[Transmitter]:
+    """
+    This function creates a pseudorandom list of routers according to the given seed and parameters.
+    :param max_x:
+    :param max_y:
+    :param seed:
+    :param num_transmitters:
+    :param path_loss:
+    :param tx_power:
+    :param chs:
+    :param ref_power:
+    :return:
+    """
     random.seed(seed)
     transmitters = []
     used_positions = []
@@ -42,7 +35,12 @@ def create_transmitters(max_x: int, max_y: int, seed: int, num_transmitters: int
 
     return transmitters
 
-def visualize(transmitters: List[Transmitter], max_line_dist: float):
+def visualize(transmitters: List[Transmitter]):
+    """
+    This function visualizes the given list of transmitters.
+    :param transmitters:
+    :return:
+    """
     x_coords = [tx.position.x for tx in transmitters]
     y_coords = [tx.position.y for tx in transmitters]
     channels = [tx.channel for tx in transmitters]
@@ -57,7 +55,7 @@ def visualize(transmitters: List[Transmitter], max_line_dist: float):
         for j in range(i + 1, len(transmitters)):
             tx1 = transmitters[i]
             tx2 = transmitters[j]
-            if tx1.position.distance(tx2.position) <= max_line_dist:
+            if tx1.get_signal_interference_ratio(tx2) < 1:
                 ax.plot((tx1.position.x, tx2.position.x), (tx1.position.y, tx2.position.y), 'ro-')
                 diff_x, diff_y = tx1.position.x - tx2.position.x, tx1.position.y - tx2.position.y
                 ax.annotate(str(round(tx1.get_signal_interference_ratio(tx2), 3)), xy=(tx2.position.x + diff_x/2, tx2.position.y + diff_y/2), fontsize=7)
@@ -66,25 +64,31 @@ def visualize(transmitters: List[Transmitter], max_line_dist: float):
     plt.show()
 
 if __name__ == "__main__":
-    # path_loss_exponents = crate_random_pl_exponents(100, 100, 20, 20, 2, 3, 1)
-    path_loss = FreeSpacePathLossModel(2.5)
-    ref_power = -40
+    path_loss_exponent = 2.5
+    # Determines how far from a transmitter the signal-interference-ratio is calculated
+    reference_power = -40
+    # The (length, width) of the area in meters
+    room_size = (200, 200)
+    # The minimum SIR between any given pair of routers
+    # In this case 0 means maximally interfered and 1 means no interference.
+    # If `average` is true then this becomes the minimum average SIR of all transmitters.
+    minimum_sir = 0.055
+    # Set to true to use total average SIR instead of pairwise minimum
+    average = False
+    # The random seed used to generate transmitter positions
+    seed = 1
+    # The number of transmitters to place in the room
+    number_of_transmitters = 15
+    # The transmission power of each transmitter
+    transmission_power = 10
+
+    path_loss = FreeSpacePathLossModel(path_loss_exponent)
     channels = Channels(2402, 11, 20, 5)
-    transmitters = create_transmitters(200, 200, 6, 10, path_loss, 10, channels, ref_power)
+    transmitters = create_transmitters(room_size[0], room_size[1], seed, number_of_transmitters, path_loss, transmission_power, channels, reference_power)
 
-    problem = create_and_solve_constraint_problem(transmitters, channels, 0.1)
+    solution = create_and_solve_constraint_problem(transmitters, channels, minimum_sir, average)
+    if solution is None:
+        print("No solution found")
+        exit(0)
+    visualize(solution)
 
-    visualize(problem.__next__(), 100)
-
-
-    #transmitter1 = Transmitter(1, 10, Position(0, 0), channels, path_loss, ref_power)
-    #transmitter2 = Transmitter(1, 10, Position(1, 1), channels, path_loss, ref_power)
-    #powa = transmitter1.get_received_power(Position(1, 1))
-    #print(powa)
-    #inter = transmitter1.get_signal_interference_ratio(transmitter2)
-    #print(inter)
-
-    # rx_pos = Position(30, 30)
-    # rx_power = transmitter1.get_received_power(rx_pos)
-    # pos_at_power = path_loss.position_from_received_power(10, rx_power, Position(0, 0), rx_pos, channels.get_channel_center(1))
-    # print(f"rx_power: {rx_power}, estimated rx_position: {pos_at_power}")

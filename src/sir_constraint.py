@@ -1,9 +1,8 @@
-from typing import Dict, Callable, Tuple, List, Any, Generator
+from typing import Dict, Callable, Tuple, List, Union
 
-from constraint import Problem
-from numpy.f2py.crackfortran import sourcecodeform
+from constraint import Problem, MinConflictsSolver
 
-from src.transmitter import Transmitter, Channels
+from transmitter import Transmitter, Channels
 
 
 def sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) -> Callable:
@@ -31,14 +30,39 @@ def sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) 
     return sir_constraint
 
 
-def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float) -> \
-        Generator[list[Transmitter], Any, None]:
+def cumulative_sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) -> Callable:
+    """
+    This functions creates a constraint function that ensures the average SIR between all transmitters is > minimum_sir.
+    :param tx_dict: A dictionary that contains all the transmitters with the key being a unique name for each.
+                    the variables passed to constraint solver should be the same as the keys for this dict.
+    :param minimum_sir: The minimum SIR between two transmitters.
+    :return: A function that takes two tuples (tx name, channel assignment) and computes the SIR between them for the given
+             channel assignments.
+    """
+
+    def sir_constraint(tx1_channel: Tuple[str, int], *args) -> bool:
+        sir = 0
+        tx1 = tx_dict[tx1_channel[0]]
+        for tx2_channel in args:
+            tx2 = tx_dict[tx2_channel[0]]
+
+            tx1.channel = tx1_channel[1]
+            tx2.channel = tx2_channel[1]
+            sir += tx1.get_signal_interference_ratio(tx2)
+
+        return (sir / len(args)) > minimum_sir
+
+    return sir_constraint
+
+def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float, average: bool) -> \
+        Union[List[Transmitter], None]:
     """
     This functions creates a constraint problem for the given transmitters and channel setup.
+    :param average: Set to true to use the average SIR between all transmitters instead of minimum SIR between pairs.
     :param transmitters: A list of all transmitters.
     :param channels: An object representing the possible channels and their frequencies.
     :param min_sir: The minimum SIR between two transmitters.
-    :return: A problem representing the constraint problem.
+    :return: A solution to the problem if it exists.
     """
     tx_dict = {tx.__repr__(): tx for tx in transmitters}
     tx_names = list(tx_dict.keys())
@@ -51,14 +75,30 @@ def create_and_solve_constraint_problem(transmitters: List[Transmitter], channel
     for tx_name in tx_dict.keys():
         problem.addVariable(tx_name, [(tx_name, ch) for ch in channels])
 
-    constraint = sir_constraint_creator(tx_dict, min_sir)
+    if average:
+        constraint = cumulative_sir_constraint_creator(tx_dict, min_sir)
+        for i in range(len(tx_names)):
+            every_other = []
+            for j in range(0, len(tx_names)):
+                if i != j:
+                    every_other.append((tx_names[j]))
+            problem.addConstraint(constraint, [tx_names[i], *every_other])
+    else:
+        constraint = sir_constraint_creator(tx_dict, min_sir)
+        # Create a SIR constraint for each possible grouping of two routers.
+        for i in range(len(tx_names) - 1):
+            for j in range(i + 1, len(tx_names)):
+                problem.addConstraint(constraint, [tx_names[i], tx_names[j]])
 
-    # Create a SIR constraint for each possible grouping of two routers.
-    for i in range(len(tx_names) - 1):
-        for j in range(i + 1, len(tx_names)):
-            problem.addConstraint(constraint, [tx_names[i], tx_names[j]])
 
-    for solution in problem.getSolutionIter():
-        for tx_name in tx_dict.keys():
-            tx_dict[tx_name].channel = solution[tx_name][1]
-        yield list(tx_dict.values())
+
+    problem.setSolver(MinConflictsSolver())
+    solution = problem.getSolution()
+    if solution is None:
+        return None
+
+    # Apply the solution to our transmitters and return a list of them.
+    for tx_name in tx_dict.keys():
+        tx_dict[tx_name].channel = solution[tx_name][1]
+
+    return list(tx_dict.values())
