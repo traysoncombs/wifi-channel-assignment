@@ -35,7 +35,7 @@ def create_transmitters(max_x: int, max_y: int, seed: int, num_transmitters: int
 
     return transmitters
 
-def visualize(transmitters: List[Transmitter]):
+def visualize(transmitters: List[Transmitter], draw_lines: bool):
     """
     This function visualizes the given list of transmitters.
     :param transmitters:
@@ -51,14 +51,15 @@ def visualize(transmitters: List[Transmitter]):
     for i in range(0, len(transmitters)):
         ax.annotate(str(channels[i]), (x_coords[i], y_coords[i]), color='b')
 
-    for i in range(len(transmitters) - 1):
-        for j in range(i + 1, len(transmitters)):
-            tx1 = transmitters[i]
-            tx2 = transmitters[j]
-            if tx1.get_signal_interference_ratio(tx2) < 1:
-                ax.plot((tx1.position.x, tx2.position.x), (tx1.position.y, tx2.position.y), 'ro-')
-                diff_x, diff_y = tx1.position.x - tx2.position.x, tx1.position.y - tx2.position.y
-                ax.annotate(str(round(tx1.get_signal_interference_ratio(tx2), 3)), xy=(tx2.position.x + diff_x/2, tx2.position.y + diff_y/2), fontsize=7)
+    if draw_lines:
+        for i in range(len(transmitters) - 1):
+            for j in range(i + 1, len(transmitters)):
+                tx1 = transmitters[i]
+                tx2 = transmitters[j]
+                if tx1.get_signal_interference_ratio(tx2) < 1:
+                    ax.plot((tx1.position.x, tx2.position.x), (tx1.position.y, tx2.position.y), 'ro-')
+                    diff_x, diff_y = tx1.position.x - tx2.position.x, tx1.position.y - tx2.position.y
+                    ax.annotate(str(round(tx1.get_signal_interference_ratio(tx2), 3)), xy=(tx2.position.x + diff_x/2, tx2.position.y + diff_y/2), fontsize=7)
 
     ax.grid(True)
     plt.show()
@@ -79,8 +80,10 @@ if __name__ == "__main__":
     seed = 1
     # The number of transmitters to place in the room
     number_of_transmitters = 15
-    # The transmission power of each transmitter
+    # The transmission power of each transmitter in DBm
     transmission_power = 10
+    # Set to false to skip drawing lines between interfering transmitters within the visualization.
+    draw_lines = True
 
     path_loss = FreeSpacePathLossModel(path_loss_exponent)
     channels = Channels(2402, 11, 20, 5)
@@ -90,5 +93,5 @@ if __name__ == "__main__":
     if solution is None:
         print("No solution found")
         exit(0)
-    visualize(solution)
+    visualize(solution, draw_lines)
 
