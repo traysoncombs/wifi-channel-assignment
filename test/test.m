@@ -1,123 +1,132 @@
-% Necessary MATLAB add ons: Communications Toolbox, WLAN Toolbox, Wireless Network Simulator
+% NOTE: This was generated using the Gemini LLM, so take any and all
+% results with a few grains of salt.
 
-%% Wireless Network Simulation — Router Placement Optimization
-clear; clc; close all;
+% wifi_log_distance_calc
+% Calculates interference using the Log-Distance Path Loss Model.
+% This model allows you to simulate indoor/cluttered environments
+% by adjusting the path loss exponent 'n'.
 
-%% Simulation parameters
-numRouters = 5;              % Number of routers (APs)
-areaSize = [100 100];        % Simulation area in meters
-iterations = 10;            % Optimization iterations
-stepSize = 2;                % Step size for movement
+clc; clear; close all; rng(1);
 
-%% Initialize wireless network simulator
-sim = wirelessNetworkSimulator.init;
+%% --- 1. CONFIGURATION ---
 
-%% Create AP nodes
-apNodes = [];
+% Positions (x, y in meters)
+positions = [158.67, 164.39;97.01, 52.32;0.09, 132.56;94.05, 151.95;54.54, 160.38;145.96, 82.80;107.66, 136.41;38.60, 110.72;161.02, 53.10;160.67, 137.14;18.63, 160.06;18.76, 39.43;126.98, 58.24;190.27, 117.71;40.17, 131.08;];
 
-for i = 1:numRouters
-    % Random initial position
-    pos = [rand()*areaSize(1), rand()*areaSize(2), 1.5];  % x, y, z
-    
-    % WLAN device configuration
-    apCfg = wlanDeviceConfig("TransmitPower", 20);  % dBm
-    
-    % Create WLAN node
-    ap = wlanNode("DeviceConfig", apCfg);
-    
-    % Set position
-    ap.Position = pos;
-    
-    % Store node
-    apNodes = [apNodes; ap];
+
+% Channels (1-11)
+channels = [1,6,11,6,11,11,11,1,6,6,1,1,1,1,6,];
+%channels = randi([1, 11], 1, 15);
+
+% --- LOG-DISTANCE MODEL PARAMETERS ---
+n = 2.5;            % Path Loss Exponent (2.0=FreeSpace, 3.0=Office, 4.0=HardWalls)
+d0 = 1.0;           % Reference distance (meters)
+sigma = 0;          % Shadowing Std Dev (dB). Set to 0 for deterministic. 
+                    % Set to ~3-6 dB for random realistic fluctuation.
+
+TxPower_dBm = 10;   % Transmit Power
+
+% Spectral Mask (dB attenuation per channel delta)
+% [Delta0, Delta1, Delta2, Delta3, Delta4, Delta5+]
+spec_mask = [0, 28, 35, 45, 50, 60]; 
+
+%% --- 2. CALCULATE REFERENCE LOSS (PL0) ---
+% Calculate Free Space Path Loss at reference distance d0 (1 meter)
+% Center freq approx 2.44 GHz for reference
+lambda = (3e8) / 2.44e9;
+PL0 = 20*log10( (4*pi*d0) / lambda );
+
+fprintf('Environment Model: Log-Distance (n=%.1f)\n', n);
+fprintf('Reference Loss at 1m: %.2f dB\n', PL0);
+
+%% --- 3. CALCULATION LOOP ---
+num_tx = size(positions, 1);
+interference_matrix_mW = zeros(num_tx, num_tx); 
+
+for i = 1:num_tx
+    for j = 1:num_tx
+        if i == j
+            continue; 
+        end
+        
+        % A. Distance
+        d = norm(positions(i,:) - positions(j,:));
+        if d < d0, d = d0; end % Cap min distance
+        
+        % B. Log-Distance Path Loss Formula
+        % PL(d) = PL0 + 10 * n * log10(d/d0)
+        path_loss = PL0 + 10 * n * log10(d/d0);
+        
+        % Add Random Shadowing (if sigma > 0)
+        if sigma > 0
+            path_loss = path_loss + (randn * sigma);
+        end
+        
+        % C. Spectral Overlap Loss
+        delta = abs(channels(i) - channels(j));
+        if delta >= length(spec_mask)
+            spec_loss = spec_mask(end);
+        else
+            spec_loss = spec_mask(delta + 1);
+        end
+        
+        % D. Received Power
+        rx_dBm = TxPower_dBm - path_loss - spec_loss;
+        
+        % Store in mW
+        interference_matrix_mW(i,j) = 10^(rx_dBm/10);
+    end
 end
 
-%% Add nodes to simulator
-addNodes(sim, apNodes);
+%% --- 4. AGGREGATE & VISUALIZE ---
 
-%% Path-loss model using 'close-in' (log-distance equivalent)
-plModel = propagationModel("close-in", ...
-    "ReferenceDistance", 1, ...      % 1 meter reference
-    "PathLossExponent", 3.0);        % typical NLOS
+% Total Interference (Sum of linear powers)
+total_int_mW = sum(interference_matrix_mW, 2);
+total_int_dBm = 10 * log10(total_int_mW);
 
-%% Function to compute total network path loss
-function totalPL = computeTotalPathLoss(nodes, model)
-    totalPL = 0;
-    N = numel(nodes);
-    txPowerW = 10^(20/10) / 1000;  % convert 20 dBm to watts
+% Table Output
+disp('--- Interference Results ---');
+T = table((1:num_tx)', channels', total_int_dBm, ...
+    'VariableNames', {'AP_ID', 'Channel', 'Noise_Floor_dBm'});
+disp(T);
 
-    for i = 1:N
-        for j = i+1:N
-            % Create txsite with Cartesian coordinate system
-            tx = txsite("cartesian", ...
-                        "AntennaPosition", nodes(i).Position(:), ...
-                        "TransmitterPower", txPowerW);
+% Visualization
+figure('Color','w', 'Name', 'Log-Distance Interference Model');
 
-            % Create rxsite with Cartesian coordinates
-            rx = rxsite("cartesian", ...
-                        "AntennaPosition", nodes(j).Position(:));
+% 1. Heatmap of Path Loss Matrix (Visualizing the "Cost" between nodes)
+subplot(1,2,1);
+% We convert the interference matrix back to dBm for plotting
+heatmap_data = 10*log10(interference_matrix_mW);
+heatmap_data(heatmap_data == -Inf) = -120; % Handle zeros
+clims = [-140, -60];
+imagesc(heatmap_data, clims);
+colorbar; title('Interference Matrix (dBm)');
+xlabel('Source Tx'); ylabel('Victim Rx');
 
-            pl = pathloss(model, rx, tx);
-            totalPL = totalPL + pl;
+% 2. Topology Plot
+subplot(1,2,2);
+hold on; grid on; axis equal;
+
+% Draw links that are problematic (> -85 dBm)
+for i=1:num_tx
+    for j=i+1:num_tx
+        pwr = 10*log10(interference_matrix_mW(i,j));
+        if pwr > -85
+            plot([positions(i,1) positions(j,1)], ...
+                 [positions(i,2) positions(j,2)], 'r--', 'LineWidth', 1);
         end
     end
 end
 
-%% Optimization loop (hill climbing)
-for iter = 1:iterations
-    for i = 1:numRouters
-        current = apNodes(i).Position;
-        bestPos = current;
-        bestCost = computeTotalPathLoss(apNodes, plModel);
-        
-        % 8 directions to try
-        dirs = [1 0; -1 0; 0 1; 0 -1; 1 1; 1 -1; -1 1; -1 -1];
-        
-        for d = 1:size(dirs,1)
-            candidate = current;
-            candidate(1:2) = candidate(1:2) + stepSize * dirs(d,:);
-            
-            % Keep inside area
-            candidate(1) = min(max(candidate(1),0), areaSize(1));
-            candidate(2) = min(max(candidate(2),0), areaSize(2));
-            
-            % Test candidate
-            apNodes(i).Position = candidate;
-            cost = computeTotalPathLoss(apNodes, plModel);
-            
-            if cost < bestCost
-                bestCost = cost;
-                bestPos = candidate;
-            end
-        end
-        
-        % Update to best position found
-        apNodes(i).Position = bestPos;
-    end
+% Draw Nodes
+scatter(positions(:,1), positions(:,2), 100, channels, 'filled', 'MarkerEdgeColor','k');
+colormap(gca, turbo);
+c = colorbar; c.Label.String = 'Channel'; caxis([1 11]);
+
+for k=1:num_tx
+    text(positions(k,1), positions(k,2)+2, ...
+        sprintf('AP%d\n%.0f dBm', k, total_int_dBm(k)), 'FontSize', 8);
 end
 
-%% Display final total path loss
-finalCost = computeTotalPathLoss(apNodes, plModel);
-disp("Final Total Path Loss (dB): " + finalCost);
-
-%% Visualize final router positions
-figure;
-% Extract positions
-positions = reshape([apNodes.Position], 3, []).';  % Nx3 matrix
-
-% 2D scatter plot
-scatter(positions(:,1), positions(:,2), 100, 'filled');
-xlabel('X (m)');
-ylabel('Y (m)');
-title('Optimized Router Layout');
-axis([0 areaSize(1) 0 areaSize(2)]);
-grid on;
-
-% 3D scatter plot
-figure;
-scatter3(positions(:,1), positions(:,2), positions(:,3), 100, 'filled');
-xlabel('X (m)');
-ylabel('Y (m)');
-zlabel('Z (m)');
-title('Optimized Router Layout (3D)');
-grid on;
+title(sprintf('Network Topology (n=%.1f)', n));
+xlabel('X (m)'); ylabel('Y (m)');
