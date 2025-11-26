@@ -94,39 +94,13 @@ disp(T);
 figure('Color','w', 'Name', 'Log-Distance Interference Model');
 
 % 1. Heatmap of Path Loss Matrix (Visualizing the "Cost" between nodes)
-subplot(1,2,1);
+axis square;
 % We convert the interference matrix back to dBm for plotting
 heatmap_data = 10*log10(interference_matrix_mW);
-heatmap_data(heatmap_data == -Inf) = -120; % Handle zeros
+heatmap_data(heatmap_data == -Inf) = NaN; % Handle zeros
 clims = [-140, -60];
-imagesc(heatmap_data, clims);
+h = imagesc(heatmap_data, clims);
+h.AlphaData = ones(size(h.CData)); 
+h.AlphaData(isnan(h.CData)) = 0;
 colorbar; title('Interference Matrix (dBm)');
 xlabel('Source Tx'); ylabel('Victim Rx');
-
-% 2. Topology Plot
-subplot(1,2,2);
-hold on; grid on; axis equal;
-
-% Draw links that are problematic (> -85 dBm)
-for i=1:num_tx
-    for j=i+1:num_tx
-        pwr = 10*log10(interference_matrix_mW(i,j));
-        if pwr > -85
-            plot([positions(i,1) positions(j,1)], ...
-                 [positions(i,2) positions(j,2)], 'r--', 'LineWidth', 1);
-        end
-    end
-end
-
-% Draw Nodes
-scatter(positions(:,1), positions(:,2), 100, channels, 'filled', 'MarkerEdgeColor','k');
-colormap(gca, turbo);
-c = colorbar; c.Label.String = 'Channel'; caxis([1 11]);
-
-for k=1:num_tx
-    text(positions(k,1), positions(k,2)+2, ...
-        sprintf('AP%d\n%.0f dBm', k, total_int_dBm(k)), 'FontSize', 8);
-end
-
-title(sprintf('Network Topology (n=%.1f)', n));
-xlabel('X (m)'); ylabel('Y (m)');
