@@ -2,6 +2,7 @@ import abc
 import math
 from math import sqrt, log10
 
+
 class Position:
     def __init__(self, x: float, y: float):
         self.x = x
@@ -29,11 +30,10 @@ class Position:
 """
 Base class for creating a path loss model
 """
-
-
 class AbstractPathLossModel(abc.ABC):
     @abc.abstractmethod
-    def received_power_at_position(self, tx_power: float, tx_pos: Position, rx_pos: Position, frequency: float):
+    def received_power_at_position(self, tx_power: float, tx_pos: Position, rx_pos: Position, frequency: float,
+                                   spectral_loss: float):
         """
         Return the path loss [DBm] between the two positions
         :param frequency: The center frequency of the signal in MHz
@@ -54,7 +54,8 @@ class FreeSpacePathLossModel(AbstractPathLossModel):
     def __init__(self, pl_exp):
         self.pl_exp = pl_exp
 
-    def received_power_at_position(self, tx_power: float, tx_pos: Position, rx_pos: Position, frequency: float):
+    def received_power_at_position(self, tx_power: float, tx_pos: Position, rx_pos: Position, frequency: float,
+                                   spectral_loss: float):
         """
         Computes received power at a position.
         :param frequency: The center frequency of the signal in MHz
@@ -68,9 +69,10 @@ class FreeSpacePathLossModel(AbstractPathLossModel):
         distance = path.mag()
 
         wavelength = (3 * 10 ** 8) / (frequency * 10 ** 6)
+        path_loss = 10 * self.pl_exp * log10((4 * math.pi * distance) / wavelength)
 
         # Compute the received power assuming unity gain
-        return tx_power + 10 * self.pl_exp * log10(wavelength / (4 * math.pi * distance))
+        return tx_power - path_loss - spectral_loss
 
     def position_from_received_power(self, tx_power: float, rx_power: float, tx_pos: Position, rx_pos: Position,
                                      frequency: float) -> Position:

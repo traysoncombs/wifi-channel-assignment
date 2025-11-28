@@ -63,10 +63,11 @@ class Transmitter:
         self.channels = channels
         self.path_loss = path_loss
         self.sir_power_ref = sir_power_ref
+        self.spectral_mask = [0, 28, 35, 45, 50, 60, 60, 60, 60, 60, 60]
 
-    def get_received_power(self, position: Position) -> float:
+    def get_received_power(self, position: Position, spectral_loss: float = 0)  -> float:
         return self.path_loss.received_power_at_position(self.tx_power, self.position, position,
-                                                         self.channels.get_channel_center(self.channel))
+                                                         self.channels.get_channel_center(self.channel), spectral_loss)
 
     def get_signal_interference_ratio(self, other_transmitter) -> float:
         """
@@ -83,34 +84,25 @@ class Transmitter:
         normal_pos = self.path_loss.position_from_received_power(self.tx_power, self.sir_power_ref, self.position,
                                                                  other_transmitter.position,
                                                                  self.channels.get_channel_center(self.channel))
-        rx_power_at_norm_pos = other_transmitter.get_received_power(normal_pos)
+        rx_power_at_norm_pos = other_transmitter.get_received_power(normal_pos, self.spectral_mask[abs(other_transmitter.channel - self.channel)])
 
         # Here we compute the SIR and normalize it to [0, 1] assuming that the maximum received power is `other_transmitter.tx_power` and
-        # the minimum received power is -90 dbm
+        # the minimum received power is -100 dbm
+        min_rx_power = -100
+        if rx_power_at_norm_pos <= min_rx_power:
+            return 1
 
         numerator_linear = (10 ** (self.sir_power_ref / 10))
         denominator_linear = (10 ** (rx_power_at_norm_pos / 10))
         # The maximum received power is the transmission power of the other transmitter
         max_rx_power_linear = (10 ** ((other_transmitter.tx_power - 30) / 10))
         # At -90dbm there will be basically no interference so we call normalize sir to be at 1 when the received power is -90dbm
-        min_rx_power_linear = (10 ** (-90 / 10))
+        min_rx_power_linear = (10 ** (min_rx_power / 10))
 
         normal_sir_numerator = (numerator_linear / denominator_linear) - (numerator_linear / max_rx_power_linear)
         normal_sir_denominator = (numerator_linear / min_rx_power_linear) - (numerator_linear / max_rx_power_linear)
 
-        # Create a scale factor to reduce our SIR for higher channel overlap.
-        if overlap <= 1:
-            scale_factor = 1
-        elif overlap <= 5:
-            scale_factor = 0.9
-        elif overlap <= 10:
-            scale_factor = 0.8
-        elif overlap <= 15:
-            scale_factor = 0.7
-        else:
-            scale_factor = 0.6
-
-        return (normal_sir_numerator / normal_sir_denominator) * scale_factor
+        return normal_sir_numerator / normal_sir_denominator
 
     def __str__(self) -> str:
         return f"{self.position}, {self.channel}"

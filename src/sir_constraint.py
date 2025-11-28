@@ -23,19 +23,19 @@ def sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) 
         tx1.channel = tx1_channel[1]
         tx2.channel = tx2_channel[1]
         sir = tx1.get_signal_interference_ratio(tx2)
-        # print(f"tx1: {tx1_channel[0]}, tx2: {tx2_channel[0]}, tx_1_ch: {tx1_channel[1]}, tx_2_ch: {tx2_channel[1]} SIR: {sir}" )
 
         return sir > minimum_sir
 
     return sir_constraint
 
 
-def cumulative_sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) -> Callable:
+def cumulative_sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_avg_sir: float, minimum_pair_sir: float) -> Callable:
     """
     This functions creates a constraint function that ensures the average SIR between all transmitters is > minimum_sir.
+    :param minimum_pair_sir: The minimum pairwise SIR between two transmitters.
     :param tx_dict: A dictionary that contains all the transmitters with the key being a unique name for each.
                     the variables passed to constraint solver should be the same as the keys for this dict.
-    :param minimum_sir: The minimum SIR between two transmitters.
+    :param minimum_avg_sir: The minimum average SIR between all transmitters.
     :return: A function that takes two tuples (tx name, channel assignment) and computes the SIR between them for the given
              channel assignments.
     """
@@ -48,16 +48,21 @@ def cumulative_sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_s
 
             tx1.channel = tx1_channel[1]
             tx2.channel = tx2_channel[1]
-            sir += tx1.get_signal_interference_ratio(tx2)
 
-        return (sir / len(args)) > minimum_sir
+            tmp_sir = tx1.get_signal_interference_ratio(tx2)
+            if tmp_sir < minimum_pair_sir:
+                return False
+            sir += tmp_sir
+
+        return (sir / (len(args))) >= minimum_avg_sir
 
     return sir_constraint
 
-def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float, average: bool) -> \
+def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float, average: bool, min_avg_sir: float = 0.95) -> \
         Union[List[Transmitter], None]:
     """
     This functions creates a constraint problem for the given transmitters and channel setup.
+    :param min_avg_sir: The minimum average SIR between all transmitters to be used if `average` is true
     :param average: Set to true to use the average SIR between all transmitters instead of minimum SIR between pairs.
     :param transmitters: A list of all transmitters.
     :param channels: An object representing the possible channels and their frequencies.
@@ -76,7 +81,7 @@ def create_and_solve_constraint_problem(transmitters: List[Transmitter], channel
         problem.addVariable(tx_name, [(tx_name, ch) for ch in channels])
 
     if average:
-        constraint = cumulative_sir_constraint_creator(tx_dict, min_sir)
+        constraint = cumulative_sir_constraint_creator(tx_dict, min_avg_sir, min_sir)
         for i in range(len(tx_names)):
             every_other = []
             for j in range(0, len(tx_names)):
