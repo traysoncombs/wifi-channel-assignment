@@ -67,7 +67,7 @@ class Transmitter:
 
     def get_received_power(self, position: Position, spectral_loss: float = 0)  -> float:
         return self.path_loss.received_power_at_position(self.tx_power, self.position, position,
-                                                         self.channels.get_channel_center(self.channel), 0)
+                                                         self.channels.get_channel_center(self.channel), spectral_loss)
 
     def get_signal_interference_ratio(self, other_transmitter) -> float:
         """
@@ -88,14 +88,14 @@ class Transmitter:
 
         # Here we compute the SIR and normalize it to [0, 1] assuming that the maximum received power is `other_transmitter.tx_power` and
         # the minimum received power is -100 dbm
-        min_rx_power = -90
+        min_rx_power = -100
         if rx_power_at_norm_pos <= min_rx_power:
             return 1
 
         numerator_linear = (10 ** (self.sir_power_ref / 10))
         denominator_linear = (10 ** (rx_power_at_norm_pos / 10))
         # The maximum received power is the transmission power of the other transmitter
-        max_rx_power_linear = (10 ** ((other_transmitter.tx_power) / 10))
+        max_rx_power_linear = (10 ** ((other_transmitter.tx_power - 30) / 10))
         # At -90dbm there will be basically no interference so we call normalize sir to be at 1 when the received power is -90dbm
         min_rx_power_linear = (10 ** (min_rx_power / 10))
 

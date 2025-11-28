@@ -108,16 +108,16 @@ def print_tx_pos_and_channels_for_testing(transmitters: List[Transmitter]):
 if __name__ == "__main__":
     path_loss_exponent = 2.5
     # Determines how far from a transmitter the signal-interference-ratio is calculated
-    reference_power = -10
+    reference_power = -40
     # The (length, width) of the area in meters
     room_size = (200, 200)
     # The minimum distance between the positions of the randomly generated transmitters.
     min_tx_distance = 20
     # The minimum SIR between any given pair of routers
     # In this case 0 means maximally interfered and 1 means no interference.
-    minimum_sir = 0.01
+    minimum_sir = 0.03
     # If `average` is true then this becomes the minimum average SIR of all transmitters.
-    minimum_avg_sir = 0.78
+    minimum_avg_sir = 0.9
     # Set to true to use total average SIR instead of pairwise minimum
     average = True
     # The random seed used to generate transmitter positions

@@ -23,7 +23,6 @@ def sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) 
         tx1.channel = tx1_channel[1]
         tx2.channel = tx2_channel[1]
         sir = tx1.get_signal_interference_ratio(tx2)
-        # print(f"tx1: {tx1_channel[0]}, tx2: {tx2_channel[0]}, tx_1_ch: {tx1_channel[1]}, tx_2_ch: {tx2_channel[1]} SIR: {sir}" )
 
         return sir > minimum_sir
 

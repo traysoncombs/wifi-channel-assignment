@@ -68,12 +68,8 @@ class FreeSpacePathLossModel(AbstractPathLossModel):
         path = Position((rx_pos.x - tx_pos.x), (rx_pos.y - tx_pos.y))
         distance = path.mag()
 
-        if distance < 1:
-            distance = 1
-
         wavelength = (3 * 10 ** 8) / (frequency * 10 ** 6)
-        pl0 = 20 * log10((4 * math.pi * 1) / wavelength)
-        path_loss = pl0 + 10*self.pl_exp * log10(distance)
+        path_loss = 10 * self.pl_exp * log10((4 * math.pi * distance) / wavelength)
 
         # Compute the received power assuming unity gain
         return tx_power - path_loss - spectral_loss
