@@ -6,7 +6,7 @@
 % This model allows you to simulate indoor/cluttered environments
 % by adjusting the path loss exponent 'n'.
 
-clc; clear; close all; rng(1);
+clc; clear; close all;
 
 %% --- 1. CONFIGURATION ---
 
@@ -15,7 +15,7 @@ positions = [158.67, 164.39;97.01, 52.32;0.09, 132.56;94.05, 151.95;54.54, 160.3
 
 
 % Channels (1-11)
-channels = [1,6,11,6,11,11,11,1,6,6,1,1,1,1,6,];
+channels = [8,4,8,2,6,3,9,10,1,5,1,5,7,10,11,];
 %channels = randi([1, 11], 1, 15);
 
 % --- LOG-DISTANCE MODEL PARAMETERS ---
@@ -28,7 +28,7 @@ TxPower_dBm = 10;   % Transmit Power
 
 % Spectral Mask (dB attenuation per channel delta)
 % [Delta0, Delta1, Delta2, Delta3, Delta4, Delta5+]
-spec_mask = [0, 28, 35, 45, 50, 60]; 
+spec_mask = [0, 28, 35, 45, 50, 60];
 
 %% --- 2. CALCULATE REFERENCE LOSS (PL0) ---
 % Calculate Free Space Path Loss at reference distance d0 (1 meter)
@@ -89,6 +89,8 @@ disp('--- Interference Results ---');
 T = table((1:num_tx)', channels', total_int_dBm, ...
     'VariableNames', {'AP_ID', 'Channel', 'Noise_Floor_dBm'});
 disp(T);
+avg_interference = mean(total_int_dBm);
+disp("Average: " + avg_interference);
 
 % Visualization
 figure('Color','w', 'Name', 'Log-Distance Interference Model');
@@ -96,8 +98,20 @@ figure('Color','w', 'Name', 'Log-Distance Interference Model');
 % 1. Heatmap of Path Loss Matrix (Visualizing the "Cost" between nodes)
 axis square;
 % We convert the interference matrix back to dBm for plotting
-heatmap_data = 10*log10(interference_matrix_mW);
-heatmap_data(heatmap_data == -Inf) = NaN; % Handle zeros
+interference_matrix_db = 10*log10(interference_matrix_mW);
+interference_matrix_db(interference_matrix_db == -Inf) = NaN; % Handle zeros
+
+num_rows = floor(num_tx/2);
+num_cols = ceil(num_tx/2);
+
+heatmap_data = zeros(num_rows, num_cols);
+
+for i = 1:num_rows
+	for j = num_cols:num_tx
+        heatmap_data(i, j - num_cols + 1) = interference_matrix_db(i, j);
+    end
+end
+
 clims = [-140, -60];
 h = imagesc(heatmap_data, clims);
 h.AlphaData = ones(size(h.CData)); 
