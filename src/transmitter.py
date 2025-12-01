@@ -1,6 +1,6 @@
 from typing import List
 
-from path_loss import AbstractPathLossModel, Position
+from src.path_loss import AbstractPathLossModel, Position
 
 """
 Class that houses channels with a fixed width

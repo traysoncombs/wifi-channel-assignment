@@ -2,7 +2,7 @@ from typing import Dict, Callable, Tuple, List, Union
 
 from constraint import Problem, MinConflictsSolver
 
-from transmitter import Transmitter, Channels
+from src.transmitter import Transmitter, Channels
 
 
 def sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_sir: float) -> Callable:
@@ -58,7 +58,7 @@ def cumulative_sir_constraint_creator(tx_dict: Dict[str, Transmitter], minimum_a
 
     return sir_constraint
 
-def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float, average: bool, min_avg_sir: float = 0.95) -> \
+def create_and_solve_constraint_problem(transmitters: List[Transmitter], channels: Channels, min_sir: float, average: bool, min_avg_sir: float = 0.95, max_steps: int = 1000) -> \
         Union[List[Transmitter], None]:
     """
     This functions creates a constraint problem for the given transmitters and channel setup.
@@ -97,7 +97,7 @@ def create_and_solve_constraint_problem(transmitters: List[Transmitter], channel
 
 
 
-    problem.setSolver(MinConflictsSolver())
+    problem.setSolver(MinConflictsSolver(steps=max_steps))
     solution = problem.getSolution()
     if solution is None:
         return None

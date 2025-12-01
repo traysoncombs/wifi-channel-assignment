@@ -1,9 +1,10 @@
 import random
 from typing import List
 
-from path_loss import Position, FreeSpacePathLossModel, AbstractPathLossModel
-from sir_constraint import create_and_solve_constraint_problem
-from transmitter import Channels, Transmitter
+from src.path_loss import Position, FreeSpacePathLossModel, AbstractPathLossModel
+from src.transmitter import Channels, Transmitter
+
+from src.sir_constraint import create_and_solve_constraint_problem
 from matplotlib import pyplot as plt
 
 
@@ -117,7 +118,7 @@ if __name__ == "__main__":
     # In this case 0 means maximally interfered and 1 means no interference.
     minimum_sir = 0.03
     # If `average` is true then this becomes the minimum average SIR of all transmitters.
-    minimum_avg_sir = 0.9
+    minimum_avg_sir = 0.95
     # Set to true to use total average SIR instead of pairwise minimum
     average = True
     # The random seed used to generate transmitter positions
